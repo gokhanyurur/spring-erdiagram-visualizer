@@ -1,10 +1,10 @@
 interface Entity {
   name: string;
   fields: { name: string; type: string }[];
-  relations?: { type: 'OneToMany' | 'ManyToOne' | 'OneToOne'; target: string; field: string }[];
+  relations?: { type: 'OneToMany' | 'ManyToOne' | 'OneToOne' | 'ManyToMany'; target: string; field: string }[];
 }
 
-export function generateMermaidDiagram(entities: Entity[]): string {
+export function generateMermaidFromEntities(entities: Entity[]): string {
   let output = 'erDiagram\n';
 
   for (const entity of entities) {
@@ -34,6 +34,9 @@ export function generateMermaidDiagram(entities: Entity[]): string {
           break;
         case 'OneToOne':
           arrow = '||--||';
+          break;
+        case 'ManyToMany':
+          arrow = '}|--|{';
           break;
       }
 

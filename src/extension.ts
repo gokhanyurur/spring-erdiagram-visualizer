@@ -1,13 +1,12 @@
 // The module 'vscode' contains the VS Code extensibility API
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import { generateMermaidDiagram } from './parser';
-// import { parseJavaEntity } from './parser/javaEntityParser';
+import { generateMermaidFromEntities } from './parser';
 
 interface Entity {
   name: string;
   fields: { name: string; type: string }[];
-  relations?: { type: 'OneToMany' | 'ManyToOne' | 'OneToOne'; target: string; field: string }[];
+  relations?: { type: 'OneToMany' | 'ManyToOne' | 'OneToOne' | 'ManyToMany'; target: string; field: string }[];
 }
 
 function parseJavaEntity(content: string): Entity | null {
@@ -16,7 +15,9 @@ function parseJavaEntity(content: string): Entity | null {
   }
 
   const classNameMatch = content.match(/class\s+(\w+)/);
-  if (!classNameMatch) return null;
+  if (!classNameMatch) {
+    return null;
+  }
   const name = classNameMatch[1];
 
   const fieldRegex = /private\s+([\w<>]+)\s+(\w+);/g;
@@ -24,7 +25,15 @@ function parseJavaEntity(content: string): Entity | null {
 
   let match;
   while ((match = fieldRegex.exec(content)) !== null) {
-    fields.push({ type: match[1], name: match[2] });
+    const rawType = match[1];
+    const listMatch = rawType.match(/^List<(\w+)>$/);
+    if (listMatch) {
+      // const targetType = listMatch[1];
+      // relations.push({ target: targetType.toUpperCase(), type: 'one-to-many' });
+      continue; // skip adding to the fields
+    }
+
+    fields.push({ type: rawType, name: match[2] });
   }
 
   return { name, fields };
@@ -75,7 +84,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     console.log('Parsed Entities:', entities);
 
-    const diagram = generateMermaidDiagram(entities);
+    const diagram = generateMermaidFromEntities(entities);
     console.log('Generated Mermaid Diagram:', diagram);
     
     panel.webview.html = getMermaidHtml(diagram);
