@@ -6,7 +6,7 @@ import { generateMermaidFromEntities } from './parser';
 interface Entity {
   name: string;
   fields: { name: string; type: string }[];
-  relations?: { type: 'OneToMany' | 'ManyToOne' | 'OneToOne' | 'ManyToMany'; target: string; field: string }[];
+  relations?: { type: 'OneToMany' | 'ManyToOne' | 'OneToOne' | 'ManyToMany'; target: string; }[];
 }
 
 function parseJavaEntity(content: string): Entity | null {
@@ -18,25 +18,56 @@ function parseJavaEntity(content: string): Entity | null {
   if (!classNameMatch) {
     return null;
   }
+
   const name = classNameMatch[1];
-
-  const fieldRegex = /private\s+([\w<>]+)\s+(\w+);/g;
   const fields: { name: string; type: string }[] = [];
+  const relations: { target: string; type: 'OneToMany' | 'ManyToOne' | 'OneToOne' | 'ManyToMany' }[] = [];
 
-  let match;
-  while ((match = fieldRegex.exec(content)) !== null) {
-    const rawType = match[1];
-    const listMatch = rawType.match(/^List<(\w+)>$/);
-    if (listMatch) {
-      // const targetType = listMatch[1];
-      // relations.push({ target: targetType.toUpperCase(), type: 'one-to-many' });
-      continue; // skip adding to the fields
+  let pendingRelation: 'OneToMany' | 'ManyToOne' | 'OneToOne' | 'ManyToMany' | null = null;
+
+  const lines = content.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+
+    const relMatch = line.match(/@(OneToMany|ManyToOne|OneToOne|ManyToMany)/);
+    if (relMatch) {
+      pendingRelation = relMatch[1] as unknown as typeof pendingRelation;
+      continue;
     }
 
-    fields.push({ type: rawType, name: match[2] });
+    const fieldMatch = line.match(/private\s+([\w<>]+)\s+(\w+);/);
+    if (fieldMatch) {
+      const rawType = fieldMatch[1];
+      const fieldName = fieldMatch[2];
+
+      if (pendingRelation) {
+        const listMatch = rawType.match(/^List<(\w+)>$/);
+        const targetType = listMatch ? listMatch[1] : rawType;
+        relations.push({
+          target: targetType.toUpperCase(),
+          type: pendingRelation
+        });
+        pendingRelation = null;
+        continue;
+      }
+
+      const listMatch = rawType.match(/^List<(\w+)>$/);
+      if (listMatch) {
+        const targetType = listMatch[1];
+        relations.push({ target: targetType.toUpperCase(), type: 'OneToMany' });
+        continue;
+      }
+
+      if (/^[A-Z]\w+$/.test(rawType) && !['String', 'Integer', 'Float', 'Double', 'Long', 'Boolean', 'Date'].includes(rawType)) {
+        relations.push({ target: rawType.toUpperCase(), type: 'ManyToOne' });
+        continue;
+      }
+
+      fields.push({ type: rawType, name: fieldName });
+    }
   }
 
-  return { name, fields };
+  return { name, fields, relations };
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -69,8 +100,6 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     
-    console.log('files zort:', files);
-
     const entities: Entity[] = [];
 
     for (const file of files) {
@@ -81,8 +110,6 @@ export function activate(context: vscode.ExtensionContext) {
         entities.push(parsedEntity);
       }
     }
-
-    console.log('Parsed Entities:', entities);
 
     const diagram = generateMermaidFromEntities(entities);
     console.log('Generated Mermaid Diagram:', diagram);
