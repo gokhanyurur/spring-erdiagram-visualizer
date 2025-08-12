@@ -1,5 +1,3 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
 import { generateMermaidFromEntities } from "./parser";
 
@@ -12,8 +10,12 @@ interface Entity {
   }[];
 }
 
-function parseJavaEntity(content: string): Entity | null {
-  if (!/@Entity\b/.test(content)) {
+function parseJavaEntity(
+  content: string,
+  allFiles?: Map<string, string>,
+  isEmbededContent = false
+): Entity | null {
+  if (!isEmbededContent && !/@Entity\b/.test(content)) {
     return null;
   }
 
@@ -52,27 +54,53 @@ function parseJavaEntity(content: string): Entity | null {
       const fieldName = fieldMatch[2];
 
       const prevLine = i > 0 ? lines[i - 1].trim() : "";
-      if (prevLine.startsWith("@Enumerated")) {
+      const isEnum = prevLine.startsWith("@Enumerated");
+      const isEmbedded = prevLine.startsWith("@Embedded");
+
+      if (isEnum) {
         fields.push({ type: rawType, name: fieldName });
         pendingRelation = null;
         continue;
       }
 
-      if (pendingRelation) {
-        const listMatch = rawType.match(/^List<(\w+)>$/);
-        const targetType = listMatch ? listMatch[1] : rawType;
-        relations.push({
-          target: targetType.toUpperCase(),
-          type: pendingRelation,
-        });
+      if (isEmbedded && allFiles) {
+        //TODO handle EmbeddedColumnNaming annotation
+        const embeddedClassName = rawType;
+        for (const [_, fileContent] of allFiles.entries()) {
+          if (fileContent.includes(`class ${embeddedClassName}`)) {
+            const embeddedEntity = parseJavaEntity(fileContent, allFiles, true);
+            if (embeddedEntity) {
+              for (const embeddedField of embeddedEntity.fields) {
+                fields.push({
+                  type: embeddedField.type,
+                  name: `${fieldName}_${embeddedField.name}`,
+                });
+              }
+            }
+            break;
+          }
+        }
         pendingRelation = null;
         continue;
       }
 
       const listMatch = rawType.match(/^List<(\w+)>$/);
+      if (pendingRelation) {
+        const targetType = listMatch ? listMatch[1] : rawType;
+        relations.push({
+          target: targetType.toUpperCase(),
+          type: pendingRelation,
+        });
+        fields.push({ type: `${targetType}`, name: fieldName });
+        pendingRelation = null;
+        continue;
+      }
+
+      
       if (listMatch) {
         const targetType = listMatch[1];
         relations.push({ target: targetType.toUpperCase(), type: "OneToMany" });
+        fields.push({ type: `${targetType}[]`, name: fieldName });
         pendingRelation = null;
         continue;
       }
@@ -86,6 +114,7 @@ function parseJavaEntity(content: string): Entity | null {
         ].includes(rawType)
       ) {
         relations.push({ target: rawType.toUpperCase(), type: "ManyToOne" });
+        fields.push({ type: rawType, name: fieldName });
         pendingRelation = null;
         continue;
       }
@@ -94,7 +123,7 @@ function parseJavaEntity(content: string): Entity | null {
       pendingRelation = null;
     }
   }
-
+  // TODO process JoinColumn and add relation id
   return { name, fields, relations };
 }
 
@@ -131,12 +160,17 @@ export function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      const entities: Entity[] = [];
-
+      const allFiles = new Map<string, string>();
       for (const file of files) {
         const fileContent = await vscode.workspace.fs.readFile(file);
         const contentStr = Buffer.from(fileContent).toString("utf8");
-        const parsedEntity = parseJavaEntity(contentStr);
+        allFiles.set(file.fsPath, contentStr);
+      }
+
+      const entities: Entity[] = [];
+
+      for (const [_, contentStr] of allFiles.entries()) {
+        const parsedEntity = parseJavaEntity(contentStr, allFiles);
         if (parsedEntity) {
           entities.push(parsedEntity);
         }
@@ -152,7 +186,6 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(disposable);
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {}
 
 function getMermaidHtml(diagramCode: string): string {
