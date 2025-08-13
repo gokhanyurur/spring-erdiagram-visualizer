@@ -29,9 +29,7 @@ function parseJavaEntity(
   content: string,
 ): Entity | null {
   // Clean commented out code
-  // Single line comments (// ...)
   content = content.replace(/\/\/.*$/gm, "");
-  // Multiline comments (/* ... */ and /** ... */)
   content = content.replace(/\/\*[\s\S]*?\*\//g, "");
 
   if (!/@Entity\b/.test(content)) {
@@ -60,13 +58,13 @@ function parseJavaEntity(
       continue;
     }
 
-    // Field declaration
-    const fieldMatch = line.match(/private\s+([\w<>]+)\s+(\w+)(?:\s*=\s*[^;]+)?\s*;/);
+    // Field declaration (allowing for = new ... and generics like Map<>)
+    const fieldMatch = line.match(/private\s+([\w<>?,\s]+)\s+(\w+)(?:\s*=\s*[^;]+)?\s*;/);
     if (!fieldMatch) {
       continue;
     }
 
-    const rawType = fieldMatch[1];
+    const rawType = fieldMatch[1].replace(/\s+/g, ""); // remove spaces inside generic
     const fieldName = fieldMatch[2];
     const prevLine = i > 0 ? lines[i - 1].trim() : "";
 
@@ -79,11 +77,28 @@ function parseJavaEntity(
       continue;
     }
 
+    // Handle List<SomeType>
     const listMatch = rawType.match(/^List<(\w+)>$/);
+    // Handle Map<KeyType, ValueType>
+    const mapMatch = rawType.match(/^Map<\w+,\s*(\w+)>$/);
+
     if (pendingRelation) {
-      const targetType = listMatch ? listMatch[1] : rawType;
+      let targetType = rawType;
+      if (listMatch) {
+        targetType = listMatch[1];
+      } else if (mapMatch) {
+        targetType = mapMatch[1];
+      }
+
       relations.push({ target: targetType.toUpperCase(), type: pendingRelation });
-      fields.push({ type: listMatch ? `${targetType}[]` : targetType, name: fieldName });
+      fields.push({
+        type: listMatch
+          ? `List_${targetType}`
+          : mapMatch
+          ? `Map_${targetType}`
+          : targetType,
+        name: fieldName
+      });
       pendingRelation = null;
       continue;
     }
@@ -92,6 +107,13 @@ function parseJavaEntity(
       const targetType = listMatch[1];
       relations.push({ target: targetType.toUpperCase(), type: "OneToMany" });
       fields.push({ type: `${targetType}[]`, name: fieldName });
+      continue;
+    }
+
+    if (mapMatch) {
+      const targetType = mapMatch[1];
+      relations.push({ target: targetType.toUpperCase(), type: "OneToMany" });
+      fields.push({ type: `Map_${targetType}`, name: fieldName });
       continue;
     }
 
