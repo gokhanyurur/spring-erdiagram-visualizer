@@ -42,14 +42,12 @@ function parseJavaEntity(content: string): Entity | null {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
-    // Detect relation annotation
     const relMatch = line.match(/@(OneToMany|ManyToOne|OneToOne|ManyToMany)/);
     if (relMatch) {
       pendingRelation = relMatch[1] as RelationType;
       continue;
     }
 
-    // Detect field declaration
     const fieldMatch = line.match(/private\s+([\w<>?,\s]+)\s+(\w+)(?:\s*=\s*[^;]+)?\s*;/);
     if (!fieldMatch) {
       continue;
@@ -59,7 +57,6 @@ function parseJavaEntity(content: string): Entity | null {
     const fieldName = fieldMatch[2];
     const prevLine = i > 0 ? lines[i - 1].trim() : "";
 
-    // Special cases
     if (prevLine.startsWith("@Enumerated") || prevLine.startsWith("@Embedded")) {
       fields.push({ type: rawType, name: fieldName });
       pendingRelation = null;
@@ -70,8 +67,6 @@ function parseJavaEntity(content: string): Entity | null {
     const mapMatch = rawType.match(/^Map<\w+,\s*(\w+)>$/);
     const setMatch = rawType.match(/^Set<(\w+)>$/);
 
-
-    // If annotated with a relation
     if (pendingRelation) {
       let targetType = rawType;
       if (listMatch) {
@@ -85,15 +80,14 @@ function parseJavaEntity(content: string): Entity | null {
       }
 
       relations.push({ target: targetType.toUpperCase(), type: pendingRelation });
-      fields.push({ 
-        type: listMatch ? `List_${targetType}` : mapMatch ? `Map_${targetType}` : setMatch ? `Set_${targetType}` : targetType, name: fieldName
+      fields.push({
+        type: listMatch ? `List_${targetType}` : mapMatch ? `Map_${targetType}` : setMatch ? `Set_${targetType}` : targetType,
+        name: fieldName
       });
-
       pendingRelation = null;
       continue;
     }
 
-    // No relation annotation → try implicit relations
     if (listMatch) {
       const targetType = listMatch[1];
       relations.push({ target: targetType.toUpperCase(), type: "OneToMany" });
@@ -121,7 +115,6 @@ function parseJavaEntity(content: string): Entity | null {
       continue;
     }
 
-    // Default primitive or simple type
     fields.push({ type: rawType, name: fieldName });
   }
 
@@ -132,32 +125,43 @@ function isCustomType(type: string): boolean {
   return /^[A-Z]\w+$/.test(type) && !JAVA_PRIMITIVE_TYPES_AND_COMMONS.includes(type);
 }
 
+async function getAllJavaFilesInFolder(folderUri: vscode.Uri): Promise<vscode.Uri[]> {
+  const uris: vscode.Uri[] = [];
+  async function traverseFolder(uri: vscode.Uri) {
+    const entries = await vscode.workspace.fs.readDirectory(uri);
+    for (const [name, type] of entries) {
+      const entryUri = vscode.Uri.joinPath(uri, name);
+      if (type === vscode.FileType.Directory) {
+        await traverseFolder(entryUri);
+      } else if (name.endsWith(".java")) {
+        uris.push(entryUri);
+      }
+    }
+  }
+  await traverseFolder(folderUri);
+  return uris;
+}
+
 export function activate(context: vscode.ExtensionContext) {
   const disposable = vscode.commands.registerCommand("erdiagram.generate", async () => {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) {
-      return;
-    }
-
-    const panel = vscode.window.createWebviewPanel(
-      "erDiagram",
-      "Entity Diagram",
-      vscode.ViewColumn.One,
-      { enableScripts: true }
-    );
-
-    const files = await vscode.window.showOpenDialog({
-      canSelectMany: true,
-      openLabel: "Select Entity Files",
-      filters: { "Java Files": ["java"] },
+    const folder = await vscode.window.showOpenDialog({
+      canSelectFolders: true,
+      canSelectMany: false,
+      openLabel: "Select Root Folder"
     });
 
-    if (!files?.length) {
-      vscode.window.showErrorMessage("No files selected.");
+    if (!folder?.length) {
+      vscode.window.showErrorMessage("No folder selected.");
       return;
     }
 
-    const allFiles = await loadFiles(files);
+    const javaFiles = await getAllJavaFilesInFolder(folder[0]);
+    if (!javaFiles.length) {
+      vscode.window.showErrorMessage("No Java files found in the selected folder.");
+      return;
+    }
+
+    const allFiles = await loadFiles(javaFiles);
     const entities: Entity[] = [];
 
     for (const content of allFiles.values()) {
@@ -168,6 +172,14 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     const diagram = generateMermaidFromEntities(entities);
+
+    const panel = vscode.window.createWebviewPanel(
+      "erDiagram",
+      "Entity Diagram",
+      vscode.ViewColumn.One,
+      { enableScripts: true }
+    );
+
     panel.webview.html = getMermaidHtml(diagram);
   });
 
@@ -190,14 +202,132 @@ function getMermaidHtml(diagramCode: string): string {
     <head>
       <meta charset="UTF-8">
       <style>
-        body { background-color: #1e1e1e; color: white; padding: 20px; }
+        body {
+          margin: 0;
+          font-family: 'Inter', sans-serif;
+          background: #1e1e1e;
+          color: #fff;
+          display: flex;
+          flex-direction: column;
+          height: 100vh;
+        }
+        .toolbar {
+          display: flex;
+          gap: 10px;
+          padding: 10px 20px;
+        }
+        .button {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          background: #3a3a3a;
+          border: none;
+          color: white;
+          padding: 8px 12px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 14px;
+          transition: all 0.2s;
+        }
+        .button:hover {
+          background: #555;
+          transform: translateY(-2px);
+        }
+        .diagram-container {
+          flex: 1;
+          overflow: auto;
+          padding: 20px;
+        }
+        .diagram-container svg {
+          width: 100%;
+          height: auto;
+        }
+        .coffee {
+          margin-left: auto;
+          color: #ffdd57;
+          text-decoration: none;
+          font-weight: bold;
+          display: flex;
+          align-items: center;
+          gap: 5px;
+        }
+        .coffee:hover {
+          color: #ffd700;
+        }
       </style>
     </head>
     <body>
-      <div class="mermaid">${diagramCode}</div>
+      <div class="toolbar">
+        <button onclick="copyMermaid()" class="button" id="copy-to-clipboard">📋 Copy as Mermaid</button>
+        <button onclick="exportSVG()" class="button" id="export-svg">💾 Export as SVG</button>
+        <a class="coffee" href="https://www.buymeacoffee.com/gokhanyurur" target="_blank">☕ Support</a>
+      </div>
+      <div class="diagram-container">
+        <div class="mermaid">${diagramCode}</div>
+      </div>
       <script type="module">
         import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
         mermaid.initialize({ startOnLoad: true });
+
+        window.copyMermaid = () => {
+          navigator.clipboard.writeText(\`${diagramCode}\`).then(() => {
+            alert('Mermaid code copied to clipboard!');
+          });
+        };
+
+        window.exportSVG = () => {
+          const svg = document.querySelector('svg');
+          if (!svg) return;
+          const serializer = new XMLSerializer();
+          const svgBlob = new Blob([serializer.serializeToString(svg)], {type:"image/svg+xml;charset=utf-8"});
+          const url = URL.createObjectURL(svgBlob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "diagram.svg";
+          a.click();
+          URL.revokeObjectURL(url);
+        };
+
+        window.exportPNG = () => {
+          const svgElement = document.querySelector("svg");
+          if (!svgElement) {
+            alert("SVG not found!");
+            return;
+          }
+
+          const bbox = svgElement.getBBox();
+          const width = bbox.width;
+          const height = bbox.height;
+
+          if (!svgElement.hasAttribute("viewBox")) {
+            svgElement.setAttribute("viewBox", (bbox.x + " " + bbox.y + " " + width + " " + height));
+          }
+
+          const svgData = new XMLSerializer().serializeToString(svgElement);
+          const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
+          const url = URL.createObjectURL(svgBlob);
+
+          const img = new Image();
+          img.onload = () => {
+            const scale = 3;
+            const canvas = document.createElement("canvas");
+            canvas.width = width * scale;
+            canvas.height = height * scale;
+
+            const ctx = canvas.getContext("2d");
+            ctx.setTransform(scale, 0, 0, scale, 0, 0);
+            ctx.drawImage(img, 0, 0);
+
+            const pngData = canvas.toDataURL("image/png");
+            const link = document.createElement("a");
+            link.href = pngData;
+            link.download = "diagram.png";
+            link.click();
+
+            URL.revokeObjectURL(url);
+          };
+          img.src = url;
+        };
       </script>
     </body>
     </html>
