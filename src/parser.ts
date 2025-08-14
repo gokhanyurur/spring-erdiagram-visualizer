@@ -1,76 +1,71 @@
-interface Entity {
-  name: string;
-  fields: { name: string; type: string }[];
-  relations?: { type: 'OneToMany' | 'ManyToOne' | 'OneToOne' | 'ManyToMany'; target: string; }[];
-}
+import { RelationType, Entity } from "./models";
 
 export function generateMermaidFromEntities(entities: Entity[]): string {
   let output = 'erDiagram\n';
 
-  for (const entity of entities) {
-    output += `  ${entity.name.toUpperCase()} {\n`;
-    for (const field of entity.fields) {
-      output += `    ${field.type} ${field.name}\n`;
+  // Entities
+  for (const { name, fields } of entities) {
+    output += `  ${name.toUpperCase()} {\n`;
+    for (const { type, name: fieldName } of fields) {
+      output += `    ${type} ${fieldName}\n`;
     }
     output += `  }\n\n`;
   }
 
+  // Relations
   const relationSet = new Set<string>();
 
-  for (const entity of entities) {
-    if (!entity.relations) {
+  for (const { name, relations } of entities) {
+    if (!relations) {
       continue;
     }
 
-    for (const relation of entity.relations) {
-      const source = entity.name.toUpperCase();
-      const target = relation.target.toUpperCase();
-      let relationKey: string;
+    for (const { type, target } of relations) {
+      const source = name.toUpperCase();
+      const targetEntity = target.toUpperCase();
 
-      if (
-        (relation.type === 'OneToOne' || relation.type === 'ManyToMany') ||
-        (relation.type === 'OneToMany' || relation.type === 'ManyToOne')
-      ) {
-        // For all bidirectional and inverse relations, sort source and target
-        const [a, b] = [source, target].sort();
-        // Use a generic type for OneToMany/ManyToOne and for OneToOne/ManyToMany
-        let typeKey: any = relation.type;
-        if (relation.type === 'OneToMany' || relation.type === 'ManyToOne') {
-          typeKey = 'OneToMany/ManyToOne';
-        }
-        if (relation.type === 'OneToOne' || relation.type === 'ManyToMany') {
-          typeKey = relation.type;
-        }
-        relationKey = `${a}<->${typeKey}<->${b}`;
-      } else {
-        relationKey = `${source}->${relation.type}->${target}`;
-      }
-
+      // Prevent duplicate relations
+      const relationKey = getRelationKey(source, targetEntity, type);
       if (relationSet.has(relationKey)) {
         continue;
       }
-
       relationSet.add(relationKey);
 
-      let arrow = '';
-      switch (relation.type) {
-        case 'OneToMany':
-          arrow = '||--o{';
-          break;
-        case 'ManyToOne':
-          arrow = '}o--||';
-          break;
-        case 'OneToOne':
-          arrow = '||--||';
-          break;
-        case 'ManyToMany':
-          arrow = '}|--|{';
-          break;
-      }
-
-      output += `  ${source} ${arrow} ${target} : relates\n`;
+      // Mermaid arrow representation
+      const arrow = getMermaidArrow(type);
+      output += `  ${source} ${arrow} ${targetEntity} : relates\n`;
     }
   }
 
   return output;
+}
+
+// Generate a unique key for each relation to avoid duplicates
+function getRelationKey(a: string, b: string, type: RelationType): string {
+  const bidirectional = type === 'OneToOne' || type === 'ManyToMany' || type === 'OneToMany' || type === 'ManyToOne';
+
+  if (bidirectional) {
+    const [x, y] = [a, b].sort();
+    const typeKey =
+      type === 'OneToMany' || type === 'ManyToOne'
+        ? 'OneToMany/ManyToOne'
+        : type; // Handle bidirectional relations with a common type key
+    return `${x}<->${typeKey}<->${y}`;
+  }
+
+  return `${a}->${type}->${b}`;
+}
+
+// Mermaid arrow representation based on relation type
+function getMermaidArrow(type: RelationType): string {
+  switch (type) {
+    case 'OneToMany':
+      return '||--o{';
+    case 'ManyToOne':
+      return '}o--||';
+    case 'OneToOne':
+      return '||--||';
+    case 'ManyToMany':
+      return '}|--|{';
+  }
 }

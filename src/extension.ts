@@ -1,36 +1,27 @@
 import * as vscode from "vscode";
 import { generateMermaidFromEntities } from "./parser";
+import { Field, RelationType, Relation, Entity } from "./models";
 
-interface Field {
-  name: string;
-  type: string;
-}
-
-type RelationType = "OneToMany" | "ManyToOne" | "OneToOne" | "ManyToMany";
-
-interface Relation {
-  type: RelationType;
-  target: string;
-}
-
-interface Entity {
-  name: string;
-  fields: Field[];
-  relations?: Relation[];
-}
-
-const PRIMITIVE_TYPES = [
-  "String", "Integer", "Float", "Double", "Long", "Boolean", "Date",
-  "LocalDate", "LocalDateTime",
-  "int", "float", "double", "long", "boolean", "char", "byte", "short"
+const JAVA_PRIMITIVE_TYPES = [
+  "byte", "short", "int", "long", "float", "double", "char", "boolean"
 ];
 
-function parseJavaEntity(
-  content: string,
-): Entity | null {
+const JAVA_COMMON_SIMPLE_TYPES = [
+  "String", "Integer", "Float", "Double", "Long", "Boolean", "Date",
+  "LocalDate", "LocalDateTime", "BigDecimal", "BigInteger",
+  "UUID", "Instant", "LocalTime", "Short", "Byte", "Character",
+  "Timestamp", "Time", "Calendar", "ZonedDateTime", "OffsetDateTime",
+  "OffsetTime", "Duration", "Period", "URL", "URI", "Enum"
+];
+
+const JAVA_PRIMITIVE_TYPES_AND_COMMONS = [
+  ...JAVA_PRIMITIVE_TYPES,
+  ...JAVA_COMMON_SIMPLE_TYPES
+];
+
+function parseJavaEntity(content: string): Entity | null {
   // Clean commented out code
-  content = content.replace(/\/\/.*$/gm, "");
-  content = content.replace(/\/\*[\s\S]*?\*\//g, "");
+  content = content.replace(/\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
 
   if (!/@Entity\b/.test(content)) {
     return null;
@@ -51,62 +42,62 @@ function parseJavaEntity(
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
 
-    // Relation annotation
+    // Detect relation annotation
     const relMatch = line.match(/@(OneToMany|ManyToOne|OneToOne|ManyToMany)/);
     if (relMatch) {
       pendingRelation = relMatch[1] as RelationType;
       continue;
     }
 
-    // Field declaration (allowing for = new ... and generics like Map<>)
+    // Detect field declaration
     const fieldMatch = line.match(/private\s+([\w<>?,\s]+)\s+(\w+)(?:\s*=\s*[^;]+)?\s*;/);
     if (!fieldMatch) {
       continue;
     }
 
-    const rawType = fieldMatch[1].replace(/\s+/g, ""); // remove spaces inside generic
+    const rawType = fieldMatch[1].replace(/\s+/g, "");
     const fieldName = fieldMatch[2];
     const prevLine = i > 0 ? lines[i - 1].trim() : "";
 
-    const isEnum = prevLine.startsWith("@Enumerated");
-    const isEmbedded = prevLine.startsWith("@Embedded");
-
-    if (isEmbedded || isEnum) {
+    // Special cases
+    if (prevLine.startsWith("@Enumerated") || prevLine.startsWith("@Embedded")) {
       fields.push({ type: rawType, name: fieldName });
       pendingRelation = null;
       continue;
     }
 
-    // Handle List<SomeType>
     const listMatch = rawType.match(/^List<(\w+)>$/);
-    // Handle Map<KeyType, ValueType>
     const mapMatch = rawType.match(/^Map<\w+,\s*(\w+)>$/);
+    const setMatch = rawType.match(/^Set<(\w+)>$/);
 
+
+    // If annotated with a relation
     if (pendingRelation) {
       let targetType = rawType;
       if (listMatch) {
         targetType = listMatch[1];
-      } else if (mapMatch) {
+      }
+      if (mapMatch) {
         targetType = mapMatch[1];
+      }
+      if (setMatch) {
+        targetType = setMatch[1];
       }
 
       relations.push({ target: targetType.toUpperCase(), type: pendingRelation });
-      fields.push({
-        type: listMatch
-          ? `List_${targetType}`
-          : mapMatch
-          ? `Map_${targetType}`
-          : targetType,
-        name: fieldName
+      fields.push({ 
+        type: listMatch ? `List_${targetType}` : mapMatch ? `Map_${targetType}` : setMatch ? `Set_${targetType}` : targetType, name: fieldName
       });
+
       pendingRelation = null;
       continue;
     }
 
+    // No relation annotation → try implicit relations
     if (listMatch) {
       const targetType = listMatch[1];
       relations.push({ target: targetType.toUpperCase(), type: "OneToMany" });
-      fields.push({ type: `${targetType}[]`, name: fieldName });
+      fields.push({ type: `List_${targetType}`, name: fieldName });
       continue;
     }
 
@@ -117,12 +108,20 @@ function parseJavaEntity(
       continue;
     }
 
+    if (setMatch) {
+      const targetType = setMatch[1];
+      relations.push({ target: targetType.toUpperCase(), type: "OneToMany" });
+      fields.push({ type: `Set_${targetType}`, name: fieldName });
+      continue;
+    }
+
     if (isCustomType(rawType)) {
       relations.push({ target: rawType.toUpperCase(), type: "ManyToOne" });
       fields.push({ type: rawType, name: fieldName });
       continue;
     }
 
+    // Default primitive or simple type
     fields.push({ type: rawType, name: fieldName });
   }
 
@@ -130,12 +129,10 @@ function parseJavaEntity(
 }
 
 function isCustomType(type: string): boolean {
-  return /^[A-Z]\w+$/.test(type) && !PRIMITIVE_TYPES.includes(type);
+  return /^[A-Z]\w+$/.test(type) && !JAVA_PRIMITIVE_TYPES_AND_COMMONS.includes(type);
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  const extensionUri = context.extensionUri;
-  
   const disposable = vscode.commands.registerCommand("erdiagram.generate", async () => {
     const editor = vscode.window.activeTextEditor;
     if (!editor) {
@@ -146,7 +143,7 @@ export function activate(context: vscode.ExtensionContext) {
       "erDiagram",
       "Entity Diagram",
       vscode.ViewColumn.One,
-      { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(extensionUri, "media")] }
+      { enableScripts: true }
     );
 
     const files = await vscode.window.showOpenDialog({
@@ -163,10 +160,10 @@ export function activate(context: vscode.ExtensionContext) {
     const allFiles = await loadFiles(files);
     const entities: Entity[] = [];
 
-    for (const [, contentStr] of allFiles.entries()) {
-      const parsedEntity = parseJavaEntity(contentStr);
-      if (parsedEntity) {
-        entities.push(parsedEntity);
+    for (const content of allFiles.values()) {
+      const parsed = parseJavaEntity(content);
+      if (parsed) {
+        entities.push(parsed);
       }
     }
 
