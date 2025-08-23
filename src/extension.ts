@@ -29,47 +29,48 @@ async function loadFiles(files: vscode.Uri[]): Promise<Map<string, string>> {
   return map;
 }
 
-export function activate(context: vscode.ExtensionContext) {
-  const disposable = vscode.commands.registerCommand("erdiagram.generate", async () => {
-    const folder = await vscode.window.showOpenDialog({
-      canSelectFolders: true,
-      canSelectMany: false,
-      openLabel: "Select Root Folder"
-    });
-
-    if (!folder?.length) {
-      vscode.window.showErrorMessage("No folder selected.");
-      return;
-    }
-
-    const javaFiles = await getAllJavaFilesInFolder(folder[0]);
-    if (!javaFiles.length) {
-      vscode.window.showErrorMessage("No Java files found in the selected folder.");
-      return;
-    }
-
-    const allFiles = await loadFiles(javaFiles);
-    const entities: Entity[] = [];
-
-    for (const content of allFiles.values()) {
-      const parsed = parseJavaEntity(content);
-      if (parsed) {
-        entities.push(parsed);
-      }
-    }
-
-    const diagram = generateMermaidFromEntities(entities);
-
-    const panel = vscode.window.createWebviewPanel(
-      "erDiagram",
-      "Entity Diagram",
-      vscode.ViewColumn.One,
-      { enableScripts: true }
-    );
-
-    panel.webview.html = getMermaidHtml(diagram);
+export async function generateERD() {
+  const folder = await vscode.window.showOpenDialog({
+    canSelectFolders: true,
+    canSelectMany: false,
+    openLabel: "Select Root Folder"
   });
 
+  if (!folder?.length) {
+    vscode.window.showErrorMessage("No folder selected.");
+    return;
+  }
+
+  const javaFiles = await getAllJavaFilesInFolder(folder[0]);
+  if (!javaFiles.length) {
+    vscode.window.showErrorMessage("No Java files found in the selected folder.");
+    return;
+  }
+
+  const allFiles = await loadFiles(javaFiles);
+  const entities: Entity[] = [];
+
+  for (const content of allFiles.values()) {
+    const parsed = parseJavaEntity(content);
+    if (parsed) {
+      entities.push(parsed);
+    }
+  }
+
+  const diagram = generateMermaidFromEntities(entities);
+
+  const panel = vscode.window.createWebviewPanel(
+    "erDiagram",
+    "Entity Diagram",
+    vscode.ViewColumn.One,
+    { enableScripts: true }
+  );
+
+  panel.webview.html = getMermaidHtml(diagram);
+}
+
+export function activate(context: vscode.ExtensionContext) {
+  const disposable = vscode.commands.registerCommand("erdiagram.generate", generateERD);
   context.subscriptions.push(disposable);
 }
 

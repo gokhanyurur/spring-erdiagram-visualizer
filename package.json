@@ -1,7 +1,7 @@
 {
-  "name": "spring-erdiagram-visualizer",
-  "displayName": "spring-erdiagram-visualizer",
-  "description": "Generates ER diagram by scanning Spring Boot JPA Entities",
+  "name": "jpa-visualizer",
+  "displayName": "JPA Visualizer",
+  "description": "Generates ER diagrams from your Java JPA entities",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.101.0"
@@ -15,7 +15,7 @@
     "commands": [
       {
         "command": "erdiagram.generate",
-        "title": "Generate ER Diagram from Spring Entities"
+        "title": "JPA Visualizer: Generate ER Diagram"
       }
     ]
   },
