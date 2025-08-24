@@ -1,28 +1,97 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-import * as vscode from 'vscode';
-import { generateMermaidDiagram } from './parser';
+import * as vscode from "vscode";
+import { generateMermaidFromEntities } from "./mermaidParser";
+import type { Entity } from "./models";
+import { parseJavaEntity, getMermaidHtml } from "./utils";
 
-export function activate(context: vscode.ExtensionContext) {
-  const disposable = vscode.commands.registerCommand('erdiagram.generate', async () => {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) { return; }
+async function getAllJavaFilesInFolder(folderUri: vscode.Uri): Promise<vscode.Uri[]> {
+  const uris: vscode.Uri[] = [];
+  async function traverseFolder(uri: vscode.Uri) {
+    const entries = await vscode.workspace.fs.readDirectory(uri);
+    for (const [name, type] of entries) {
+      const entryUri = vscode.Uri.joinPath(uri, name);
+      if (type === vscode.FileType.Directory) {
+        await traverseFolder(entryUri);
+      } else if (name.endsWith(".java")) {
+        uris.push(entryUri);
+      }
+    }
+  }
+  await traverseFolder(folderUri);
+  return uris;
+}
 
-    const code = editor.document.getText();
-    const diagram = generateMermaidDiagram(code);
+async function loadFiles(files: vscode.Uri[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  for (const file of files) {
+    const fileContent = await vscode.workspace.fs.readFile(file);
+    map.set(file.fsPath, Buffer.from(fileContent).toString("utf8"));
+  }
+  return map;
+}
 
-    const panel = vscode.window.createWebviewPanel(
-      'erdiagram',
-      'ER Diagram',
-      vscode.ViewColumn.Two,
-      {}
+export async function generateERD(context: vscode.ExtensionContext) {
+  const folders = vscode.workspace.workspaceFolders;
+
+  if (!folders || folders.length === 0) {
+    vscode.window.showErrorMessage("No workspace folder is open.");
+    return;
+  }
+
+  let selectedFolder: vscode.Uri;
+
+  if (folders.length === 1) {
+    // If only one workspace folder, use it directly
+    selectedFolder = folders[0].uri;
+  } else {
+    // If multiple workspace folders, prompt the user to select one
+    const picked = await vscode.window.showQuickPick(
+      folders.map(f => f.name),
+      { placeHolder: "Select the workspace folder to scan for Java files" }
     );
 
-    panel.webview.html = `<html><body><pre>${diagram}</pre></body></html>`;
-  });
+    if (!picked) {
+      vscode.window.showErrorMessage("No folder selected.");
+      return;
+    }
 
+    selectedFolder = folders.find(f => f.name === picked)!.uri;
+  }
+
+  const javaFiles = await getAllJavaFilesInFolder(selectedFolder);
+  if (!javaFiles.length) {
+    vscode.window.showErrorMessage("No Java files found in the selected folder.");
+    return;
+  }
+
+  const allFiles = await loadFiles(javaFiles);
+  const entities: Entity[] = [];
+
+  for (const content of allFiles.values()) {
+    const parsed = parseJavaEntity(content);
+    if (parsed) {
+      entities.push(parsed);
+    }
+  }
+
+  const diagram = generateMermaidFromEntities(entities);
+
+  const panel = vscode.window.createWebviewPanel(
+    "erDiagram",
+    "Entity Diagram",
+    vscode.ViewColumn.One,
+    { enableScripts: true }
+  );
+
+  const mermaidScriptUri = panel.webview.asWebviewUri(
+    vscode.Uri.joinPath(context.extensionUri, "media", "mermaid.min.js")
+  );
+
+  panel.webview.html = getMermaidHtml(diagram, mermaidScriptUri);
+}
+
+export function activate(context: vscode.ExtensionContext) {
+  const disposable = vscode.commands.registerCommand("jpaVisualizer.generateDiagram", async() => generateERD(context));
   context.subscriptions.push(disposable);
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {}
