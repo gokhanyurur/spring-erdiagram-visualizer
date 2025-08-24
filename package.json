@@ -64,5 +64,10 @@
     "visualizer"
   ],
   "author": "Gokhan Yurur",
-  "license": "BUSL-1.1"
+  "license": "BUSL-1.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gokhanyurur/spring-erdiagram-visualizer.git"
+  },
+  "icon": "icon.png"
 }
