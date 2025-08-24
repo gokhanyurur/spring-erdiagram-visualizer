@@ -15,8 +15,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "erdiagram.generate",
-        "title": "JPA Visualizer: Generate ER Diagram"
+        "command": "jpaVisualizer.generateDiagram",
+        "title": "JPA Visualizer: Generate Diagram"
       }
     ]
   },

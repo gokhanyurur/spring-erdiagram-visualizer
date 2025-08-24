@@ -74,7 +74,7 @@ export async function generateERD(context: vscode.ExtensionContext) {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  const disposable = vscode.commands.registerCommand("erdiagram.generate", async() => generateERD(context));
+  const disposable = vscode.commands.registerCommand("jpaVisualizer.generateDiagram", async() => generateERD(context));
   context.subscriptions.push(disposable);
 }
 
