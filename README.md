@@ -47,5 +47,7 @@ This project is licensed under the Business Source License 1.1 (BUSL-1.1).
 - ✅ You can read, modify, and use the code for non-commercial and personal/educational purposes.
 - 🚫 You cannot use it in production or for commercial purposes until the change date.
 - 📅 On 2029-01-01, the license will automatically convert to MIT, making it free for all uses.
+# Extension Usage
+- See `docs/USAGE.md`
 
 ##### Enjoy visualizing your JPA entities!

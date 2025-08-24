@@ -4,6 +4,7 @@
   "publisher": "gokhanyurur", 
   "description": "Generates ER diagrams from your Java JPA entities",
   "version": "0.0.1",
+  "readme": "docs/USAGE.md",
   "engines": {
     "vscode": "^1.101.0"
   },
