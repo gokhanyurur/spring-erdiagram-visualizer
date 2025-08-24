@@ -1,0 +1,30 @@
+Business Source License 1.1
+
+Parameters
+Licensor: Gokhan Yurur
+Licensed Work: JPA Visualizer for VSCode
+The Licensed Work is (c) 2025-present Gokhan Yurur
+Additional Use Grant: You may make use of the Licensed Work for non-production,
+personal, educational, or research purposes.
+Change Date: 2029-01-01
+Change License: MIT
+
+Terms
+The Licensor hereby grants you the right to copy, modify, create derivative works,
+and redistribute the Licensed Work, provided that such use is not for a Production Use.
+Production Use means use of the Licensed Work or a modified version in any way
+that is primarily intended for or directed toward commercial advantage
+or monetary compensation.
+
+After the Change Date, the Licensed Work will be made available under the Change License.
+
+THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
+OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+EXCEPT AS EXPRESSLY STATED IN THIS LICENSE, NEITHER THE LICENSOR
+NOR ANY CONTRIBUTORS SHALL BE LIABLE FOR ANY DAMAGES OF ANY KIND,
+ARISING FROM THE USE OR INABILITY TO USE THE LICENSED WORK.
+
+Third-Party Licenses
+This project uses the following third-party components:
+- Mermaid.js (MIT License)

@@ -1,71 +1,51 @@
-# spring-erdiagram-visualizer README
+# JPA Visualizer
 
-This is the README for your extension "spring-erdiagram-visualizer". After writing up a brief description, we recommend including the following sections.
+Generate interactive ER diagrams from your Java JPA entities directly in Visual Studio Code.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- Scans your workspace for Java files annotated with `@Entity`
+- Parses entity fields and JPA relations (`@OneToMany`, `@ManyToOne`, etc.)
+- Generates Mermaid ER diagrams for your data model
+- Displays diagrams in a VS Code webview panel
+- Export diagrams as SVG or PNG
+- Copy Mermaid code to clipboard
 
-For example if there is an image subfolder under your extension project workspace:
+## Getting Started
 
-\!\[feature X\]\(images/feature-x.png\)
+1. **Install dependencies:**
+   ```sh
+   npm install
+2. **Build the extension:**
+   ```sh
+   npm run build
+3. **Launch in VS Code:**
+- Press `F5` to open a new Extension Development Host window.
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+4. **Generate a diagram:**
+- Open the command palette (`Ctrl+Shift+P` or `Cmd+Shift+P`)
+- Run `JPA Visualizer: Generate Diagram`
 
 ## Requirements
-
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
+- Visual Studio Code v1.101.0 or newer
+- Java source files using JPA annotations
+## Usage
+- The extension scans all Java files in your workspace for JPA entities.
+- It parses fields and relations, then generates a Mermaid ER diagram.
+- The diagram is rendered in a webview panel with export and copy options.
+## Development
+- Source code is in `src/`
+- Build scripts: `build.js`
+- Mermaid library is bundled from `node_modules/mermaid/dist/mermaid.min.js` to `media/mermaid.min.js`
 ## Known Issues
+- Only supports basic JPA annotations and simple entity structures.
+- Complex mapping scenarios may not be fully visualized.
+# Contributing
+- Pull requests and issues are welcome!
+# License
+This project is licensed under the Business Source License 1.1 (BUSL-1.1).
+- ✅ You can read, modify, and use the code for non-commercial and personal/educational purposes.
+- 🚫 You cannot use it in production or for commercial purposes until the change date.
+- 📅 On 2029-01-01, the license will automatically convert to MIT, making it free for all uses.
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+##### Enjoy visualizing your JPA entities!
