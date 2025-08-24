@@ -30,18 +30,34 @@ async function loadFiles(files: vscode.Uri[]): Promise<Map<string, string>> {
 }
 
 export async function generateERD(context: vscode.ExtensionContext) {
-  const folder = await vscode.window.showOpenDialog({
-    canSelectFolders: true,
-    canSelectMany: false,
-    openLabel: "Select Root Folder"
-  });
+  const folders = vscode.workspace.workspaceFolders;
 
-  if (!folder?.length) {
-    vscode.window.showErrorMessage("No folder selected.");
+  if (!folders || folders.length === 0) {
+    vscode.window.showErrorMessage("No workspace folder is open.");
     return;
   }
 
-  const javaFiles = await getAllJavaFilesInFolder(folder[0]);
+  let selectedFolder: vscode.Uri;
+
+  if (folders.length === 1) {
+    // If only one workspace folder, use it directly
+    selectedFolder = folders[0].uri;
+  } else {
+    // If multiple workspace folders, prompt the user to select one
+    const picked = await vscode.window.showQuickPick(
+      folders.map(f => f.name),
+      { placeHolder: "Select the workspace folder to scan for Java files" }
+    );
+
+    if (!picked) {
+      vscode.window.showErrorMessage("No folder selected.");
+      return;
+    }
+
+    selectedFolder = folders.find(f => f.name === picked)!.uri;
+  }
+
+  const javaFiles = await getAllJavaFilesInFolder(selectedFolder);
   if (!javaFiles.length) {
     vscode.window.showErrorMessage("No Java files found in the selected folder.");
     return;

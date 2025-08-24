@@ -33,7 +33,7 @@ export function generateMermaidFromEntities(entities: Entity[]): string {
 
       // Mermaid arrow representation
       const arrow = getMermaidArrow(type);
-      output += `  ${source} ${arrow} ${targetEntity} : relates\n`;
+      output += `  ${source} ${arrow} ${targetEntity} : ""\n`;
     }
   }
 
