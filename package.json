@@ -1,6 +1,7 @@
 {
   "name": "jpa-visualizer",
   "displayName": "JPA Visualizer",
+  "publisher": "gokhanyurur", 
   "description": "Generates ER diagrams from your Java JPA entities",
   "version": "0.0.1",
   "engines": {
@@ -31,7 +32,8 @@
     "pretest": "npm run compile-tests && npm run compile && npm run lint",
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "build": "node build.mjs"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
@@ -48,5 +50,8 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3",
     "vscode-test": "^1.6.1"
+  },
+  "dependencies": {
+    "mermaid": "^11.10.1"
   }
 }

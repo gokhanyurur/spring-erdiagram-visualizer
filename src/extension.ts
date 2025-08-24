@@ -29,7 +29,7 @@ async function loadFiles(files: vscode.Uri[]): Promise<Map<string, string>> {
   return map;
 }
 
-export async function generateERD() {
+export async function generateERD(context: vscode.ExtensionContext) {
   const folder = await vscode.window.showOpenDialog({
     canSelectFolders: true,
     canSelectMany: false,
@@ -66,11 +66,15 @@ export async function generateERD() {
     { enableScripts: true }
   );
 
-  panel.webview.html = getMermaidHtml(diagram);
+  const mermaidScriptUri = panel.webview.asWebviewUri(
+    vscode.Uri.joinPath(context.extensionUri, "media", "mermaid.min.js")
+  );
+
+  panel.webview.html = getMermaidHtml(diagram, mermaidScriptUri);
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  const disposable = vscode.commands.registerCommand("erdiagram.generate", generateERD);
+  const disposable = vscode.commands.registerCommand("erdiagram.generate", async() => generateERD(context));
   context.subscriptions.push(disposable);
 }
 

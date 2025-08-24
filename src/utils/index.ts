@@ -1,5 +1,6 @@
 
 
+import { Uri } from "vscode";
 import type { Field, RelationType, Relation, Entity } from "../models";
 import { JAVA_PRIMITIVE_TYPES_AND_COMMONS } from "./constants";
 
@@ -105,7 +106,7 @@ export function isCustomType(type: string): boolean {
   return /^[A-Z]\w+$/.test(type) && !JAVA_PRIMITIVE_TYPES_AND_COMMONS.includes(type);
 }
 
-export function getMermaidHtml(diagramCode: string): string {
+export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): string {
   return `
     <!DOCTYPE html>
     <html lang="en">
@@ -175,8 +176,8 @@ export function getMermaidHtml(diagramCode: string): string {
       <div class="diagram-container">
         <div class="mermaid">${diagramCode}</div>
       </div>
-      <script type="module">
-        import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+      <script src="${mermaidScriptUri}"></script>
+      <script>
         mermaid.initialize({ startOnLoad: true });
 
         window.copyMermaid = () => {
