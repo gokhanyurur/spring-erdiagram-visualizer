@@ -6,8 +6,11 @@ Generate interactive ER diagrams from your Java JPA entities – right inside Vi
 * 🔍 Automatically scans your workspace for `@Entity` classes
 * 🧩 Detects fields and JPA relations `(@OneToMany, @ManyToOne, etc.)`
 * 🗺️ Generates clean Mermaid ER diagrams in a VS Code webview
+<img src="./docs/demo/generate-diagram.gif" width="600" alt="How to generate ER diagram" />
 * 📤 Export diagrams as **SVG/PNG**
+<img src="./docs/demo/export-as-svg.gif" width="600" alt="How to export as svg" />
 * 📋 Copy **Mermaid code** to clipboard for documentation or sharing
+<img src="./docs/demo/copy-as-mermaid.gif" width="600" alt="How to export as svg" />
 
 #### 🚀 Quick Start
 * Open the command palette `(Ctrl+Shift+P / Cmd+Shift+P)`

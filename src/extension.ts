@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
-import { generateMermaidFromEntities } from "./mermaidParser";
-import type { Entity } from "./models";
-import { parseJavaEntity, getMermaidHtml } from "./utils";
+import { generateMermaidFromEntities } from "./mermaidParser.js";
+import type { Entity } from "./models/index.js";
+import { parseJavaEntity, getMermaidHtml } from "./utils/index.js";
 
 async function getAllJavaFilesInFolder(folderUri: vscode.Uri): Promise<vscode.Uri[]> {
   const uris: vscode.Uri[] = [];
@@ -77,7 +77,7 @@ export async function generateERD(context: vscode.ExtensionContext) {
 
   const panel = vscode.window.createWebviewPanel(
     "erDiagram",
-    "Entity Diagram",
+    "Entity Relationship Diagram",
     vscode.ViewColumn.One,
     { enableScripts: true }
   );

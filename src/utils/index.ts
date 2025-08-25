@@ -1,8 +1,8 @@
 
 
 import { Uri } from "vscode";
-import type { Field, RelationType, Relation, Entity } from "../models";
-import { JAVA_PRIMITIVE_TYPES_AND_COMMONS } from "./constants";
+import type { Field, RelationType, Relation, Entity } from "../models/index.js";
+import { JAVA_PRIMITIVE_TYPES_AND_COMMONS } from "./constants.js";
 
 export function parseJavaEntity(content: string): Entity | null {
   // Clean commented out code
@@ -33,7 +33,7 @@ export function parseJavaEntity(content: string): Entity | null {
       continue;
     }
 
-    const fieldMatch = line.match(/private\s+([\w<>?,\s]+)\s+(\w+)(?:\s*=\s*[^;]+)?\s*;/);
+    const fieldMatch = line.match(/^(?:private|protected|public)?\s*([\w<>?,\s]+)\s+(\w+)(?:\s*=\s*[^;]+)?\s*;/);
     if (!fieldMatch) {
       continue;
     }
