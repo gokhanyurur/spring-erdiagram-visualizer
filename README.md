@@ -1,6 +1,6 @@
-## JPA Visualizer
+## JPA Visualizer [![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/gokhanyurur.jpa-visualizer)](https://marketplace.visualstudio.com/items?itemName=gokhanyurur.jpa-visualizer) [![Marketplace](https://img.shields.io/badge/VS%20Code-Marketplace-blue?logo=visualstudiocode)](https://marketplace.visualstudio.com/items?itemName=gokhanyurur.jpa-visualizer)
 
-Generate interactive ER diagrams from your Java JPA entities – right inside Visual Studio Code.
+*Generate interactive ER diagrams from your Java JPA entities – right inside Visual Studio Code.*
 
 #### ✨ Features
 * 🔍 Automatically scans your workspace for `@Entity` classes
