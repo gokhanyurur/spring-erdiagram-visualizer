@@ -1,4 +1,4 @@
-import { RelationType, Entity } from "./models";
+import { RelationType, Entity } from "./models/index.js";
 
 export function generateMermaidFromEntities(entities: Entity[]): string {
   let output = 'erDiagram\n';

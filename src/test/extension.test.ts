@@ -1,7 +1,7 @@
 import * as assert from 'assert';
-import { parseJavaEntity, isCustomType } from '../utils';
-import { generateMermaidFromEntities } from '../mermaidParser';
-import { Entity } from '../models';
+import { parseJavaEntity, isCustomType } from '../utils/index.js';
+import { generateMermaidFromEntities } from '../mermaidParser.js';
+import { Entity } from '../models/index.js';
 
 suite('parseJavaEntity', () => {
   test('returns null if @Entity is missing', () => {
@@ -173,8 +173,8 @@ suite('generateMermaidFromEntities', () => {
     assert.match(mermaid, /CUSTOMER \{\s+String username\s+\s+Cart cart\s+/);
 
     // Assert relations
-    assert.match(mermaid, /CART \|\|--o\{ CARTITEM : relates/); // OneToMany
-    assert.match(mermaid, /CART \|\|--\|\| CUSTOMER : relates/); // OneToOne
+    assert.match(mermaid, /CART \|\|--o\{ CARTITEM : ""/); // OneToMany
+    assert.match(mermaid, /CART \|\|--\|\| CUSTOMER : ""/); // OneToOne
   });
 
   test('avoids duplicate bidirectional relations', () => {
@@ -199,8 +199,38 @@ suite('generateMermaidFromEntities', () => {
     const mermaid = generateMermaidFromEntities(entities);
 
     // Only one relation line for bidirectional OneToOne
-    const matches = mermaid.match(/A \|\|--\|\| B : relates/g);
+    const matches = mermaid.match(/A \|\|--\|\| B : ""/g);
     assert.ok(matches && matches.length === 1);
+  });
+
+  test('handles entity without access modifiers', () => {
+    const java = `
+      @Getter
+      @Setter
+      @SuperBuilder
+      @NoArgsConstructor
+      @Table(name = "foo_table", schema = "public")
+      @Entity
+      @EqualsAndHashCode(callSuper = true)
+      public class Foo extends BaseEntity {
+
+        @ManyToOne
+        @JoinColumn(name = "bar_id", referencedColumnName = "id", nullable = false)
+        BarEntity bar;
+        UUID uuid;
+        String name;
+        Double value;
+        @Enumerated(EnumType.STRING)
+        Status status;
+      }
+    `;
+    const foo = parseJavaEntity(java);
+    const entities = [foo] as Entity[];
+
+    const mermaid = generateMermaidFromEntities(entities);
+
+    assert.match(mermaid, /FOO \{\s+BarEntity bar\s+UUID uuid\s+String name\s+Double value\s+Status status\s+/);
+    assert.match(mermaid, /FOO \}o--\|\| BARENTITY : ""/);
   });
 
   test('handles entity with only regular columns', () => {
@@ -219,7 +249,7 @@ suite('generateMermaidFromEntities', () => {
 
     assert.match(mermaid, /FOO \{\s+int id\s+String name\s+Double value\s+/);
     // No relations
-    assert.ok(!/relates/.test(mermaid));
+    assert.ok(!/""/.test(mermaid));
   });
 
   test('handles ManyToMany relation', () => {
@@ -253,7 +283,7 @@ suite('generateMermaidFromEntities', () => {
     assert.match(mermaid, /ROLE \{\s+String name\s+List_User users\s+\}/);
 
     // Only one relation line for bidirectional ManyToMany
-    const matches = mermaid.match(/USER \}\|--\|\{ ROLE : relates/g);
+    const matches = mermaid.match(/USER \}\|--\|\{ ROLE : ""/g);
     assert.ok(matches && matches.length === 1);
   });
 
@@ -596,13 +626,13 @@ suite('generateMermaidFromEntities', () => {
     assert.match(mermaid, /USERSESSION \{\s+Integer sessionId\s+String token\s+Integer userId\s+String userType\s+LocalDateTime sessionStartTime\s+LocalDateTime sessionEndTime\s+\}/);
 
     // Relations
-    assert.match(mermaid, /ADDRESS \}o--\|\| CUSTOMER : relates/);
-    assert.match(mermaid, /CART \|\|--o\{ CARTITEM : relates/);
-    assert.match(mermaid, /CART \|\|--\|\| CUSTOMER : relates/);
-    assert.match(mermaid, /CARTITEM \|\|--\|\| PRODUCT : relates/);
-    assert.match(mermaid, /CUSTOMER \|\|--o\{ ORDER : relates/);
-    assert.match(mermaid, /ORDER \|\|--o\{ CARTITEM : relates/);
-    assert.match(mermaid, /ORDER \}o--\|\| ADDRESS : relates/);
-    assert.match(mermaid, /PRODUCT \}o--\|\| SELLER : relates/);
+    assert.match(mermaid, /ADDRESS \}o--\|\| CUSTOMER : ""/);
+    assert.match(mermaid, /CART \|\|--o\{ CARTITEM : ""/);
+    assert.match(mermaid, /CART \|\|--\|\| CUSTOMER : ""/);
+    assert.match(mermaid, /CARTITEM \|\|--\|\| PRODUCT : ""/);
+    assert.match(mermaid, /CUSTOMER \|\|--o\{ ORDER : ""/);
+    assert.match(mermaid, /ORDER \|\|--o\{ CARTITEM : ""/);
+    assert.match(mermaid, /ORDER \}o--\|\| ADDRESS : ""/);
+    assert.match(mermaid, /PRODUCT \}o--\|\| SELLER : ""/);
   });
 });
