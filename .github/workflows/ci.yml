@@ -22,5 +22,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run tests
-        run: npm run test
+      - name: Type check
+        run: npm run check-types
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run tests with xvfb
+        run: xvfb-run -a npm run test
