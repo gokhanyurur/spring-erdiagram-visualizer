@@ -55,13 +55,16 @@
   "dependencies": {
     "mermaid": "^11.10.1"
   },
-    "keywords": [
+  "keywords": [
     "Java",
-    "Spring",
+    "diagram",
+    
     "JPA",
     "ERD",
-    "Mermaid",
-    "visualizer"
+    "mermaid",
+    "visualization",
+    "database",
+    "entity"
   ],
   "author": "Gokhan Yurur",
   "license": "BUSL-1.1",
