@@ -116,11 +116,17 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
         body {
           margin: 0;
           font-family: 'Inter', sans-serif;
-          background: #1e1e1e;
-          color: #fff;
           display: flex;
           flex-direction: column;
           height: 100vh;
+        }
+        body[data-theme="light"] {
+          background: #ffffff;
+          color: #1e1e1e;
+        }
+        body[data-theme="dark"] {
+          background: #1e1e1e;
+          color: #ffffff;
         }
         .toolbar {
           display: flex;
@@ -149,9 +155,62 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
           overflow: auto;
           padding: 20px;
         }
+        body[data-theme="light"] .diagram-container {
+          background: #ffffff;
+        }
+        body[data-theme="dark"] .diagram-container {
+          background: #1e1e1e;
+        }
         .diagram-container svg {
           width: 100%;
           height: auto;
+        }
+        .theme-toggle {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .theme-toggle-label {
+          font-size: 13px;
+        }
+        .switch {
+          position: relative;
+          display: inline-block;
+          width: 44px;
+          height: 24px;
+        }
+        .switch input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+        }
+        .slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: #999;
+          transition: 0.2s;
+          border-radius: 999px;
+        }
+        .slider:before {
+          position: absolute;
+          content: "";
+          height: 18px;
+          width: 18px;
+          left: 3px;
+          bottom: 3px;
+          background-color: white;
+          transition: 0.2s;
+          border-radius: 50%;
+        }
+        input:checked + .slider {
+          background-color: #4b9fff;
+        }
+        input:checked + .slider:before {
+          transform: translateX(20px);
         }
         .coffee {
           margin-left: auto;
@@ -171,6 +230,14 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
       <div class="toolbar">
         <button onclick="copyMermaid()" class="button" id="copy-to-clipboard">📋 Copy as Mermaid</button>
         <button onclick="exportSVG()" class="button" id="export-svg">💾 Export as SVG</button>
+        <div class="theme-toggle">
+          <span class="theme-toggle-label">Light</span>
+          <label class="switch">
+            <input type="checkbox" id="theme-toggle" />
+            <span class="slider"></span>
+          </label>
+          <span class="theme-toggle-label">Dark</span>
+        </div>
         <a class="coffee" href="https://www.buymeacoffee.com/gokhanyurur" target="_blank">☕ Support</a>
       </div>
       <div class="diagram-container">
@@ -178,7 +245,66 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
       </div>
       <script src="${mermaidScriptUri}"></script>
       <script>
-        mermaid.initialize({ startOnLoad: true });
+        const diagramContainer = document.querySelector(".mermaid");
+        const originalDiagram = diagramContainer.innerHTML;
+
+        const darkThemeConfig = {
+          theme: "base",
+          themeVariables: {
+            background: "#1e1e1e",
+            lineColor: "#ffffff",
+            textColor: "#ffffff",
+            mainBkg: "#f1f1ff",
+            nodeBorder: "#aa90e4",
+          }
+        };
+
+        const lightThemeConfig = {
+          theme: "default"
+        };
+
+        const applyTheme = (isDark) => {
+          document.body.dataset.theme = isDark ? "dark" : "light";
+          const config = isDark ? darkThemeConfig : lightThemeConfig;
+          mermaid.initialize({ startOnLoad: false, ...config });
+          diagramContainer.innerHTML = originalDiagram;
+          diagramContainer.removeAttribute("data-processed");
+          mermaid.run({ querySelector: ".mermaid" });
+        };
+
+        const ensureViewBox = (svgElement) => {
+          if (!svgElement.hasAttribute("viewBox")) {
+            const bbox = svgElement.getBBox();
+            svgElement.setAttribute(
+              "viewBox",
+              bbox.x + " " + bbox.y + " " + bbox.width + " " + bbox.height
+            );
+          }
+        };
+
+        const renderSvgForExport = async () => {
+          const isDark = document.body.dataset.theme === "dark";
+          mermaid.initialize({ startOnLoad: false, ...lightThemeConfig });
+          const { svg } = await mermaid.render("export-" + Date.now(), originalDiagram);
+          if (isDark) {
+            applyTheme(true);
+          } else {
+            applyTheme(false);
+          }
+          return svg;
+        };
+
+        const isVsCodeDark =
+          document.body.classList.contains("vscode-dark") ||
+          document.body.classList.contains("vscode-high-contrast");
+
+        const themeToggle = document.getElementById("theme-toggle");
+        themeToggle.checked = isVsCodeDark;
+        themeToggle.addEventListener("change", () => {
+          applyTheme(themeToggle.checked);
+        });
+
+        applyTheme(isVsCodeDark);
 
         window.copyMermaid = () => {
           navigator.clipboard.writeText(\`${diagramCode}\`).then(() => {
@@ -187,16 +313,18 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
         };
 
         window.exportSVG = () => {
-          const svg = document.querySelector('svg');
-          if (!svg) return;
-          const serializer = new XMLSerializer();
-          const svgBlob = new Blob([serializer.serializeToString(svg)], {type:"image/svg+xml;charset=utf-8"});
-          const url = URL.createObjectURL(svgBlob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "diagram.svg";
-          a.click();
-          URL.revokeObjectURL(url);
+          const svgElement = document.querySelector("svg");
+          if (!svgElement) return;
+          ensureViewBox(svgElement);
+          renderSvgForExport().then((svgText) => {
+            const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+            const url = URL.createObjectURL(svgBlob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "diagram.svg";
+            a.click();
+            URL.revokeObjectURL(url);
+          });
         };
 
         window.exportPNG = () => {
@@ -210,34 +338,40 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
           const width = bbox.width;
           const height = bbox.height;
 
-          if (!svgElement.hasAttribute("viewBox")) {
-            svgElement.setAttribute("viewBox", (bbox.x + " " + bbox.y + " " + width + " " + height));
-          }
+          ensureViewBox(svgElement);
 
-          const svgData = new XMLSerializer().serializeToString(svgElement);
-          const svgBlob = new Blob([svgData], { type: "image/svg+xml;charset=utf-8" });
-          const url = URL.createObjectURL(svgBlob);
+          renderSvgForExport().then((svgText) => {
+            const svgBlob = new Blob([svgText], { type: "image/svg+xml;charset=utf-8" });
+            const url = URL.createObjectURL(svgBlob);
 
-          const img = new Image();
-          img.onload = () => {
-            const scale = 3;
-            const canvas = document.createElement("canvas");
-            canvas.width = width * scale;
-            canvas.height = height * scale;
+            const img = new Image();
+            img.onload = () => {
+              const scale = 3;
+              const canvas = document.createElement("canvas");
+              canvas.width = width * scale;
+              canvas.height = height * scale;
 
-            const ctx = canvas.getContext("2d");
-            ctx.setTransform(scale, 0, 0, scale, 0, 0);
-            ctx.drawImage(img, 0, 0);
+              const ctx = canvas.getContext("2d");
+              if (!ctx) {
+                alert("Canvas context not available.");
+                return;
+              }
 
-            const pngData = canvas.toDataURL("image/png");
-            const link = document.createElement("a");
-            link.href = pngData;
-            link.download = "diagram.png";
-            link.click();
+              ctx.fillStyle = "#ffffff";
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              ctx.setTransform(scale, 0, 0, scale, 0, 0);
+              ctx.drawImage(img, 0, 0);
 
-            URL.revokeObjectURL(url);
-          };
-          img.src = url;
+              const pngData = canvas.toDataURL("image/png");
+              const link = document.createElement("a");
+              link.href = pngData;
+              link.download = "diagram.png";
+              link.click();
+
+              URL.revokeObjectURL(url);
+            };
+            img.src = url;
+          });
         };
       </script>
     </body>
