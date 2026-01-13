@@ -612,7 +612,16 @@ suite('generateMermaidFromEntities', () => {
     const seller = parseJavaEntity(sellerJava);
     const userSession = parseJavaEntity(userSessionJava);
 
-    const entities = [address, cart, cartItem, customer, order, product,seller, userSession] as Entity[];
+    const entities = [
+      address,
+      cart,
+      cartItem,
+      customer,
+      order,
+      product,
+      seller,
+      userSession,
+    ] as Entity[];
 
     const mermaid = generateMermaidFromEntities(entities);
 
@@ -634,5 +643,203 @@ suite('generateMermaidFromEntities', () => {
     assert.match(mermaid, /ORDER \|\|--o\{ CARTITEM : ""/);
     assert.match(mermaid, /ORDER \}o--\|\| ADDRESS : ""/);
     assert.match(mermaid, /PRODUCT \}o--\|\| SELLER : ""/);
+  });
+
+  test('handles entity with builder class inside', () => {
+    const withInnterBuilderClass = `
+    @Entity
+    public class MessageIncoming {
+      @Id
+      @GeneratedValue(strategy = GenerationType.IDENTITY)
+      private Long id;
+
+      private UUID uuid;
+
+      public UUID getUuid() {
+        return uuid;
+      }
+
+      public void setUuid(UUID uuid) {
+        this.uuid = uuid;
+      }
+
+      private LocalDateTime createdAt;
+      private LocalDateTime updatedAt;
+
+      @ManyToOne
+      @JoinColumn(name = "sender_id")
+      private Sender sender;
+
+      @ManyToOne
+      @JoinColumn(name = "card_id")
+      private Card card;
+
+      private String body;
+
+      private Double sellPrice;
+
+      @Enumerated(EnumType.STRING)
+      private CurrencyEnum sellCurrency;
+
+      public void setBody(String body) {
+        this.body = body;
+      }
+
+      private String msisdn;
+
+      public String getMsisdn() {
+        return msisdn;
+      }
+
+      @Enumerated(EnumType.STRING)
+      private MessageIncomingStatusEnum status;
+
+      @ManyToOne
+      @JoinColumn(name = "destination_id", nullable = false)
+      private Destination destination;
+
+      @Column(nullable = false)
+      private Integer requestId;
+
+      public MessageIncoming() {
+      }
+
+      private MessageIncoming(Builder builder) {
+        status = MessageIncomingStatusEnum.LOCAL_PENDING;
+        body = builder.body;
+        card = builder.card;
+        sender = builder.sender;
+        destination = builder.destination;
+        requestId = builder.requestId;
+        msisdn = builder.msisdn;
+        uuid = UuidCreator.getTimeOrderedEpoch();
+      }
+
+      public static Builder builder() {
+        return new Builder();
+      }
+
+      public static class Builder {
+        private String body;
+        private String msisdn;
+        private Card card;
+        private Sender sender;
+        private Destination destination;
+        private Integer requestId;
+
+        public Builder body(String body) {
+          this.body = body;
+          return this;
+        }
+
+        public Builder card(Card card) {
+          this.card = card;
+          return this;
+        }
+
+        public Builder sender(Sender sender) {
+          this.sender = sender;
+          return this;
+        }
+
+        public Builder msisdn(String msisdn) {
+          this.msisdn = msisdn;
+          return this;
+        }
+
+        public Builder destination(Destination destination) {
+          this.destination = destination;
+          return this;
+        }
+
+        public Builder requestId(Integer requestId) {
+          this.requestId = requestId;
+          return this;
+        }
+
+        public MessageIncoming build() {
+          return new MessageIncoming(this);
+        }
+      }
+
+      public Long getId() {
+        return id;
+      }
+
+      public LocalDateTime getCreatedAt() {
+        return createdAt;
+      }
+
+      public LocalDateTime getUpdatedAt() {
+        return updatedAt;
+      }
+
+      public Sender getSender() {
+        return sender;
+      }
+
+      public Card getCard() {
+        return card;
+      }
+
+      public String getBody() {
+        return body;
+      }
+
+      public MessageIncomingStatusEnum getStatus() {
+        return status;
+      }
+
+      public Destination getDestination() {
+        return destination;
+      }
+
+      public Integer getRequestId() {
+        return requestId;
+      }
+
+      @PreUpdate
+      protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+      }
+
+      @PrePersist
+      protected void onPersist() {
+        createdAt = LocalDateTime.now();
+        updatedAt = createdAt;
+      }
+    }
+    `;
+    const messageIncoming = parseJavaEntity(withInnterBuilderClass);
+    const entities = [messageIncoming] as Entity[];
+    const mermaid = generateMermaidFromEntities(entities);
+    assert.match(mermaid, /MESSAGEINCOMING \{\s+Long id\s+UUID uuid\s+LocalDateTime createdAt\s+LocalDateTime updatedAt\s+Sender sender\s+Card card\s+String body\s+Double sellPrice\s+CurrencyEnum sellCurrency\s+String msisdn\s+MessageIncomingStatusEnum status\s+Destination destination\s+Integer requestId\s+\}/);
+    assert.match(mermaid, /MESSAGEINCOMING \}o--\|\| SENDER : ""/);
+    assert.match(mermaid, /MESSAGEINCOMING \}o--\|\| CARD : ""/);
+    assert.match(mermaid, /MESSAGEINCOMING \}o--\|\| DESTINATION : ""/);
+  });
+
+  test('handles relation annotation on getter', () => {
+    const orderJava = `
+    @Entity
+    public class Order {
+      @Id
+      private Long id;
+
+      private List<OrderItem> items;
+
+      @OneToMany(mappedBy = "order", fetch = FetchType.EAGER, cascade = CascadeType.ALL)
+      public List<OrderItem> getItems() {
+        return items;
+      }
+    }
+    `;
+
+    const order = parseJavaEntity(orderJava);
+    const entities = [order] as Entity[];
+    const mermaid = generateMermaidFromEntities(entities);
+
+    assert.match(mermaid, /ORDER \{\s+Long id\s+List_OrderItem items\s+\}/);
+    assert.match(mermaid, /ORDER \|\|--o\{ ORDERITEM : ""/);
   });
 });
