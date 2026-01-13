@@ -22,81 +22,146 @@ export function parseJavaEntity(content: string): Entity | null {
   const relations: Relation[] = [];
 
   let pendingRelation: RelationType | null = null;
-  const lines = content.split("\n");
+  const classDeclIndex = content.indexOf(classNameMatch[0]);
+  const classBodyStart = content.indexOf("{", classDeclIndex);
+  if (classBodyStart === -1) {
+    return null;
+  }
+
+  const body = content.slice(classBodyStart + 1);
+  const lines = body.split("\n");
+  let depth = 1;
+  let annotationBlockDepth = 0;
+  let prevLine = "";
+  let prevLineDepth = depth;
+  const pushField = (type: string, fieldName: string) => {
+    if (!fields.some((field) => field.name === fieldName)) {
+      fields.push({ type, name: fieldName });
+    }
+  };
 
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
+    const rawLine = lines[i];
+    const line = rawLine.trim();
+    const lineDepth = depth;
 
-    const relMatch = line.match(/@(OneToMany|ManyToOne|OneToOne|ManyToMany)/);
-    if (relMatch) {
-      pendingRelation = relMatch[1] as RelationType;
-      continue;
-    }
-
-    const fieldMatch = line.match(/^(?:private|protected|public)?\s*([\w<>?,\s]+)\s+(\w+)(?:\s*=\s*[^;]+)?\s*;/);
-    if (!fieldMatch) {
-      continue;
-    }
-
-    const rawType = fieldMatch[1].replace(/\s+/g, "");
-    const fieldName = fieldMatch[2];
-    const prevLine = i > 0 ? lines[i - 1].trim() : "";
-
-    if (prevLine.startsWith("@Enumerated") || prevLine.startsWith("@Embedded")) {
-      fields.push({ type: rawType, name: fieldName });
+    if (lineDepth !== 1) {
       pendingRelation = null;
-      continue;
     }
 
-    const listMatch = rawType.match(/^List<(\w+)>$/);
-    const mapMatch = rawType.match(/^Map<\w+,\s*(\w+)>$/);
-    const setMatch = rawType.match(/^Set<(\w+)>$/);
-
-    if (pendingRelation) {
-      let targetType = rawType;
-      if (listMatch) {
-        targetType = listMatch[1];
-      }
-      if (mapMatch) {
-        targetType = mapMatch[1];
-      }
-      if (setMatch) {
-        targetType = setMatch[1];
+    if (lineDepth === 1) {
+      const relMatch = line.match(/@(OneToMany|ManyToOne|OneToOne|ManyToMany)/);
+      if (relMatch) {
+        pendingRelation = relMatch[1] as RelationType;
+        prevLine = line;
+        prevLineDepth = lineDepth;
+        continue;
       }
 
-      relations.push({ target: targetType.toUpperCase(), type: pendingRelation });
-      fields.push({
-        type: listMatch ? `List_${targetType}` : mapMatch ? `Map_${targetType}` : setMatch ? `Set_${targetType}` : targetType,
-        name: fieldName
-      });
-      pendingRelation = null;
-      continue;
+      const fieldMatch = line.match(
+        /^(?:private|protected|public)?\s*([\w<>?,\s]+)\s+(\w+)(?:\s*=\s*[^;]+)?\s*;/
+      );
+      if (fieldMatch) {
+        const rawType = fieldMatch[1].replace(/\s+/g, "");
+        const fieldName = fieldMatch[2];
+        const prevIsFieldAnnotation = prevLineDepth === 1 &&
+          (prevLine.startsWith("@Enumerated") || prevLine.startsWith("@Embedded"));
+
+        if (prevIsFieldAnnotation) {
+          pushField(rawType, fieldName);
+          pendingRelation = null;
+        } else {
+          const listMatch = rawType.match(/^List<(\w+)>$/);
+          const mapMatch = rawType.match(/^Map<\w+,\s*(\w+)>$/);
+          const setMatch = rawType.match(/^Set<(\w+)>$/);
+
+          if (pendingRelation) {
+            let targetType = rawType;
+            if (listMatch) {
+              targetType = listMatch[1];
+            }
+            if (mapMatch) {
+              targetType = mapMatch[1];
+            }
+            if (setMatch) {
+              targetType = setMatch[1];
+            }
+
+            relations.push({ target: targetType.toUpperCase(), type: pendingRelation });
+            pushField(
+              listMatch ? `List_${targetType}` : mapMatch ? `Map_${targetType}` : setMatch ? `Set_${targetType}` : targetType,
+              fieldName
+            );
+            pendingRelation = null;
+          } else if (listMatch) {
+            const targetType = listMatch[1];
+            pushField(`List_${targetType}`, fieldName);
+          } else if (mapMatch) {
+            const targetType = mapMatch[1];
+            pushField(`Map_${targetType}`, fieldName);
+          } else if (setMatch) {
+            const targetType = setMatch[1];
+            pushField(`Set_${targetType}`, fieldName);
+          } else if (isCustomType(rawType)) {
+            pushField(rawType, fieldName);
+          } else {
+            pushField(rawType, fieldName);
+          }
+        }
+      } else if (pendingRelation) {
+        const methodMatch = line.match(
+          /^(?:public|protected|private)?\s*([\w<>?,\s]+)\s+(\w+)\s*\(\s*\)/
+        );
+        if (methodMatch) {
+          const rawType = methodMatch[1].replace(/\s+/g, "");
+          const methodName = methodMatch[2];
+          const listMatch = rawType.match(/^List<(\w+)>$/);
+          const mapMatch = rawType.match(/^Map<\w+,\s*(\w+)>$/);
+          const setMatch = rawType.match(/^Set<(\w+)>$/);
+          let targetType = rawType;
+          if (listMatch) {
+            targetType = listMatch[1];
+          }
+          if (mapMatch) {
+            targetType = mapMatch[1];
+          }
+          if (setMatch) {
+            targetType = setMatch[1];
+          }
+
+          const fieldName = methodName.startsWith("get") && methodName.length > 3
+            ? methodName.charAt(3).toLowerCase() + methodName.slice(4)
+            : methodName.startsWith("is") && methodName.length > 2
+            ? methodName.charAt(2).toLowerCase() + methodName.slice(3)
+            : methodName;
+
+          relations.push({ target: targetType.toUpperCase(), type: pendingRelation });
+          pushField(
+            listMatch ? `List_${targetType}` : mapMatch ? `Map_${targetType}` : setMatch ? `Set_${targetType}` : targetType,
+            fieldName
+          );
+          pendingRelation = null;
+        }
+      }
     }
 
-    if (listMatch) {
-      const targetType = listMatch[1];
-      fields.push({ type: `List_${targetType}`, name: fieldName });
-      continue;
-    }
+    prevLine = line;
+    prevLineDepth = lineDepth;
 
-    if (mapMatch) {
-      const targetType = mapMatch[1];
-      fields.push({ type: `Map_${targetType}`, name: fieldName });
-      continue;
+    const opens = (rawLine.match(/{/g) || []).length;
+    const closes = (rawLine.match(/}/g) || []).length;
+    const isAnnotationLine = line.startsWith("@");
+    if (annotationBlockDepth > 0 || isAnnotationLine) {
+      annotationBlockDepth += opens - closes;
+      if (annotationBlockDepth < 0) {
+        annotationBlockDepth = 0;
+      }
+    } else {
+      depth += opens - closes;
     }
-
-    if (setMatch) {
-      const targetType = setMatch[1];
-      fields.push({ type: `Set_${targetType}`, name: fieldName });
-      continue;
+    if (depth <= 0) {
+      break;
     }
-
-    if (isCustomType(rawType)) {
-      fields.push({ type: rawType, name: fieldName });
-      continue;
-    }
-
-    fields.push({ type: rawType, name: fieldName });
   }
 
   return { name, fields, relations };
