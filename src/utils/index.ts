@@ -248,6 +248,7 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
         const diagramContainer = document.querySelector(".mermaid");
         const originalDiagram = diagramContainer.innerHTML;
 
+        const maxDiagramTextSize = 200000;
         const darkThemeConfig = {
           theme: "base",
           themeVariables: {
@@ -266,7 +267,7 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
         const applyTheme = (isDark) => {
           document.body.dataset.theme = isDark ? "dark" : "light";
           const config = isDark ? darkThemeConfig : lightThemeConfig;
-          mermaid.initialize({ startOnLoad: false, ...config });
+          mermaid.initialize({ startOnLoad: false, maxTextSize: maxDiagramTextSize, ...config });
           diagramContainer.innerHTML = originalDiagram;
           diagramContainer.removeAttribute("data-processed");
           mermaid.run({ querySelector: ".mermaid" });
@@ -284,7 +285,11 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
 
         const renderSvgForExport = async () => {
           const isDark = document.body.dataset.theme === "dark";
-          mermaid.initialize({ startOnLoad: false, ...lightThemeConfig });
+          mermaid.initialize({
+            startOnLoad: false,
+            maxTextSize: maxDiagramTextSize,
+            ...lightThemeConfig
+          });
           const { svg } = await mermaid.render("export-" + Date.now(), originalDiagram);
           if (isDark) {
             applyTheme(true);
