@@ -211,13 +211,21 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
           font-size: 14px;
           transition: all 0.2s;
         }
+        body[data-theme="light"] .button {
+          background: #f2f2f2;
+          color: #1e1e1e;
+          border: 1px solid #d0d0d0;
+        }
+        body[data-theme="light"] .button:hover {
+          background: #e6e6e6;
+        }
         .button:hover {
           background: #555;
           transform: translateY(-2px);
         }
         .diagram-container {
           flex: 1;
-          overflow: auto;
+          overflow: hidden;
           padding: 20px;
         }
         body[data-theme="light"] .diagram-container {
@@ -225,6 +233,48 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
         }
         body[data-theme="dark"] .diagram-container {
           background: #1e1e1e;
+        }
+        .diagram-viewport {
+          width: 100%;
+          height: 100%;
+          position: relative;
+          overflow: hidden;
+          cursor: grab;
+        }
+        .diagram-viewport.dragging {
+          cursor: grabbing;
+        }
+        .diagram-stage {
+          transform-origin: 0 0;
+          will-change: transform;
+        }
+        .zoom-controls {
+          position: absolute;
+          right: 16px;
+          top: 16px;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          z-index: 2;
+        }
+        .zoom-button {
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          border: 1px solid rgba(0, 0, 0, 0.2);
+          background: #ffffff;
+          color: #1e1e1e;
+          font-size: 20px;
+          cursor: pointer;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        }
+        body[data-theme="dark"] .zoom-button {
+          background: #2b2b2b;
+          color: #ffffff;
+          border-color: rgba(255, 255, 255, 0.2);
+        }
+        .zoom-button:hover {
+          transform: translateY(-1px);
         }
         .diagram-container svg {
           width: 100%;
@@ -286,6 +336,9 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
           align-items: center;
           gap: 5px;
         }
+        body[data-theme="light"] .coffee {
+          color: #b07600;
+        }
         .coffee:hover {
           color: #ffd700;
         }
@@ -306,12 +359,25 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
         <a class="coffee" href="https://www.buymeacoffee.com/gokhanyurur" target="_blank">☕ Support</a>
       </div>
       <div class="diagram-container">
-        <div class="mermaid">${diagramCode}</div>
+        <div class="diagram-viewport" id="diagram-viewport">
+          <div class="diagram-stage mermaid" id="diagram-stage">${diagramCode}</div>
+          <div class="zoom-controls" aria-label="Zoom controls">
+            <button class="zoom-button" id="zoom-in" title="Zoom in (+)">+</button>
+            <button class="zoom-button" id="zoom-out" title="Zoom out (-)">−</button>
+          </div>
+        </div>
       </div>
       <script src="${mermaidScriptUri}"></script>
       <script>
-        const diagramContainer = document.querySelector(".mermaid");
+        const diagramContainer = document.getElementById("diagram-stage");
+        const viewport = document.getElementById("diagram-viewport");
         const originalDiagram = diagramContainer.innerHTML;
+        const zoomState = { scale: 1, x: 0, y: 0 };
+        const zoomLimits = { min: 0.2, max: 3 };
+        let isPanning = false;
+        let panStart = { x: 0, y: 0 };
+        let panOrigin = { x: 0, y: 0 };
+        const zoomStep = 0.15;
 
         const maxDiagramTextSize = 200000;
         const darkThemeConfig = {
@@ -336,7 +402,93 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
           diagramContainer.innerHTML = originalDiagram;
           diagramContainer.removeAttribute("data-processed");
           mermaid.run({ querySelector: ".mermaid" });
+          zoomState.scale = 1;
+          zoomState.x = 0;
+          zoomState.y = 0;
+          updateTransform();
         };
+
+        const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+        const updateTransform = () => {
+          diagramContainer.style.transform =
+            "translate(" + zoomState.x + "px, " + zoomState.y + "px) scale(" + zoomState.scale + ")";
+        };
+
+        const zoomBy = (delta, centerX, centerY) => {
+          const rect = viewport.getBoundingClientRect();
+          const offsetX = centerX ?? rect.width / 2;
+          const offsetY = centerY ?? rect.height / 2;
+          const nextScale = clamp(zoomState.scale + delta, zoomLimits.min, zoomLimits.max);
+          const scaleRatio = nextScale / zoomState.scale;
+          zoomState.x = offsetX - (offsetX - zoomState.x) * scaleRatio;
+          zoomState.y = offsetY - (offsetY - zoomState.y) * scaleRatio;
+          zoomState.scale = nextScale;
+          updateTransform();
+        };
+
+        viewport.addEventListener("wheel", (event) => {
+          event.preventDefault();
+          const rect = viewport.getBoundingClientRect();
+          const offsetX = event.clientX - rect.left;
+          const offsetY = event.clientY - rect.top;
+          const delta = event.deltaY < 0 ? 1.1 : 0.9;
+          const nextScale = clamp(zoomState.scale * delta, zoomLimits.min, zoomLimits.max);
+          const scaleRatio = nextScale / zoomState.scale;
+
+          zoomState.x = offsetX - (offsetX - zoomState.x) * scaleRatio;
+          zoomState.y = offsetY - (offsetY - zoomState.y) * scaleRatio;
+          zoomState.scale = nextScale;
+          updateTransform();
+        }, { passive: false });
+
+        viewport.addEventListener("mousedown", (event) => {
+          if (event.button !== 0) return;
+          isPanning = true;
+          viewport.classList.add("dragging");
+          panStart = { x: event.clientX, y: event.clientY };
+          panOrigin = { x: zoomState.x, y: zoomState.y };
+        });
+
+        window.addEventListener("mousemove", (event) => {
+          if (!isPanning) return;
+          const dx = event.clientX - panStart.x;
+          const dy = event.clientY - panStart.y;
+          zoomState.x = panOrigin.x + dx;
+          zoomState.y = panOrigin.y + dy;
+          updateTransform();
+        });
+
+        window.addEventListener("mouseup", () => {
+          if (!isPanning) return;
+          isPanning = false;
+          viewport.classList.remove("dragging");
+        });
+
+        const zoomInButton = document.getElementById("zoom-in");
+        const zoomOutButton = document.getElementById("zoom-out");
+        zoomInButton.addEventListener("click", () => zoomBy(zoomStep));
+        zoomOutButton.addEventListener("click", () => zoomBy(-zoomStep));
+
+        window.addEventListener("keydown", (event) => {
+          const target = event.target;
+          const isTypingTarget =
+            target instanceof HTMLInputElement ||
+            target instanceof HTMLTextAreaElement ||
+            target instanceof HTMLSelectElement ||
+            target?.isContentEditable;
+          if (isTypingTarget) {
+            return;
+          }
+
+          if (event.key === "+" || event.key === "=") {
+            event.preventDefault();
+            zoomBy(zoomStep);
+          } else if (event.key === "-") {
+            event.preventDefault();
+            zoomBy(-zoomStep);
+          }
+        });
 
         const ensureViewBox = (svgElement) => {
           if (!svgElement.hasAttribute("viewBox")) {
