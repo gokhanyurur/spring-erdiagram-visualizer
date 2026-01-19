@@ -57,23 +57,11 @@ export async function generateERD(context: vscode.ExtensionContext) {
     selectedFolder = folders.find(f => f.name === picked)!.uri;
   }
 
-  const javaFiles = await getAllJavaFilesInFolder(selectedFolder);
-  if (!javaFiles.length) {
+  const diagram = await buildDiagramFromFolder(selectedFolder);
+  if (!diagram) {
     vscode.window.showErrorMessage("No Java files found in the selected folder.");
     return;
   }
-
-  const allFiles = await loadFiles(javaFiles);
-  const entities: Entity[] = [];
-
-  for (const content of allFiles.values()) {
-    const parsed = parseJavaEntity(content);
-    if (parsed) {
-      entities.push(parsed);
-    }
-  }
-
-  const diagram = generateMermaidFromEntities(entities);
 
   const panel = vscode.window.createWebviewPanel(
     "erDiagram",
@@ -87,6 +75,39 @@ export async function generateERD(context: vscode.ExtensionContext) {
   );
 
   panel.webview.html = getMermaidHtml(diagram, mermaidScriptUri);
+
+  const folderPath = selectedFolder.fsPath;
+  const saveListener = vscode.workspace.onDidSaveTextDocument(async (document) => {
+    if (!document.uri.fsPath.startsWith(folderPath) || !document.uri.fsPath.endsWith(".java")) {
+      return;
+    }
+    const updatedDiagram = await buildDiagramFromFolder(selectedFolder);
+    if (!updatedDiagram) {
+      return;
+    }
+    panel.webview.postMessage({ type: "diagramUpdate", diagram: updatedDiagram });
+  });
+  panel.onDidDispose(() => saveListener.dispose());
+
+}
+
+async function buildDiagramFromFolder(folder: vscode.Uri): Promise<string | null> {
+  const javaFiles = await getAllJavaFilesInFolder(folder);
+  if (!javaFiles.length) {
+    return null;
+  }
+
+  const allFiles = await loadFiles(javaFiles);
+  const entities: Entity[] = [];
+
+  for (const content of allFiles.values()) {
+    const parsed = parseJavaEntity(content);
+    if (parsed) {
+      entities.push(parsed);
+    }
+  }
+
+  return generateMermaidFromEntities(entities);
 }
 
 export function activate(context: vscode.ExtensionContext) {

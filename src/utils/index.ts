@@ -371,7 +371,7 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
       <script>
         const diagramContainer = document.getElementById("diagram-stage");
         const viewport = document.getElementById("diagram-viewport");
-        const originalDiagram = diagramContainer.innerHTML;
+        let currentDiagram = diagramContainer.innerHTML;
         const zoomState = { scale: 1, x: 0, y: 0 };
         const zoomLimits = { min: 0.2, max: 3 };
         let isPanning = false;
@@ -395,13 +395,33 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
           theme: "default"
         };
 
-        const applyTheme = (isDark) => {
+        const renderDiagram = async (diagramCode, preserveZoom) => {
+          let previousZoom = null;
+          if (preserveZoom) {
+            previousZoom = { ...zoomState };
+            zoomState.scale = 1;
+            zoomState.x = 0;
+            zoomState.y = 0;
+            updateTransform();
+          }
+
+          diagramContainer.innerHTML = diagramCode;
+          diagramContainer.removeAttribute("data-processed");
+          await mermaid.run({ querySelector: ".mermaid" });
+
+          if (previousZoom) {
+            zoomState.scale = previousZoom.scale;
+            zoomState.x = previousZoom.x;
+            zoomState.y = previousZoom.y;
+            updateTransform();
+          }
+        };
+
+        const applyTheme = async (isDark) => {
           document.body.dataset.theme = isDark ? "dark" : "light";
           const config = isDark ? darkThemeConfig : lightThemeConfig;
           mermaid.initialize({ startOnLoad: false, maxTextSize: maxDiagramTextSize, ...config });
-          diagramContainer.innerHTML = originalDiagram;
-          diagramContainer.removeAttribute("data-processed");
-          mermaid.run({ querySelector: ".mermaid" });
+          await renderDiagram(currentDiagram, false);
           zoomState.scale = 1;
           zoomState.x = 0;
           zoomState.y = 0;
@@ -507,7 +527,7 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
             maxTextSize: maxDiagramTextSize,
             ...lightThemeConfig
           });
-          const { svg } = await mermaid.render("export-" + Date.now(), originalDiagram);
+          const { svg } = await mermaid.render("export-" + Date.now(), currentDiagram);
           if (isDark) {
             applyTheme(true);
           } else {
@@ -528,8 +548,20 @@ export function getMermaidHtml(diagramCode: string, mermaidScriptUri: Uri): stri
 
         applyTheme(isVsCodeDark);
 
+        window.addEventListener("message", (event) => {
+          const message = event.data;
+          if (message?.type !== "diagramUpdate") {
+            return;
+          }
+          if (message.diagram && message.diagram !== currentDiagram) {
+            currentDiagram = message.diagram;
+            renderDiagram(currentDiagram, true);
+          }
+        });
+
+
         window.copyMermaid = () => {
-          navigator.clipboard.writeText(\`${diagramCode}\`).then(() => {
+          navigator.clipboard.writeText(currentDiagram).then(() => {
             alert('Mermaid code copied to clipboard!');
           });
         };
