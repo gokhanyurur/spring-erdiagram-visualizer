@@ -7,6 +7,12 @@
 * 🧩 Detects fields and JPA relations `(@OneToMany, @ManyToOne, etc.)`
 * 🗺️ Generates clean Mermaid ER diagrams in a VS Code webview
 <img src="./docs/demo/generate-diagram.gif" width="600" alt="How to generate ER diagram" />
+* 🔄 Updates the diagram on save
+<img src="./docs/demo/dynamic-update.gif" width="600" alt="How to update ER diagram" />
+* 🎛️ Toggle light/dark theme for better visibility
+<img src="./docs/demo/change-theme.gif" width="600" alt="How to change theme" />
+* 🧭 Zoom and pan the canvas with mouse or controls
+<img src="./docs/demo/zoom-in-out.gif" width="600" alt="How to zoom the canvas" />
 * 📤 Export diagrams as **SVG/PNG**
 <img src="./docs/demo/export-as-svg.gif" width="600" alt="How to export as svg" />
 * 📋 Copy **Mermaid code** to clipboard for documentation or sharing
